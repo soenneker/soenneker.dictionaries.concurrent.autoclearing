@@ -1,0 +1,47 @@
+﻿<?xml version="1.0" encoding="utf-8"?><Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFrameworks>net9.0</TargetFrameworks>
+        <Nullable>enable</Nullable>
+        <Platforms>AnyCPU</Platforms>
+        <NoWarn>$(NoWarn);1591</NoWarn>
+    </PropertyGroup>
+
+    <PropertyGroup>
+        <Description>A thread-safe dictionary that automatically removes entries after a time interval. Designed for high-concurrency scenarios where cached or temporary values should expire without manual cleanup, reducing memory usage and preventing stale data buildup.</Description>
+        <Version Condition="'$(BUILD_VERSION)' == ''">3.0.0</Version>
+        <Version Condition="'$(BUILD_VERSION)' != ''">$(BUILD_VERSION)</Version>
+        <AssemblyName>Soenneker.Dictionaries.Concurrent.AutoClearing</AssemblyName>
+        <PackageId>Soenneker.Dictionaries.Concurrent.AutoClearing</PackageId>
+        <PackageTags>dictionaries concurrent autoclearing auto clear dictionary time timer autoclearingconcurrentdictionary util csharp dotnet c# .net</PackageTags>
+        <Copyright>Copyright © 2025 Jake Soenneker</Copyright>
+        <Authors>Jake Soenneker</Authors>
+        <Company>https://soenneker.com</Company>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <EmbedUntrackedSources>true</EmbedUntrackedSources>
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+        <IsPackable>true</IsPackable>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageProjectUrl>https://github.com/soenneker/soenneker.dictionaries.concurrent.autoclearing</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/soenneker/soenneker.dictionaries.concurrent.autoclearing</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <RepositoryBranch>main</RepositoryBranch>
+        <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+        <PublishRepositoryUrl>true</PublishRepositoryUrl>
+        <LangVersion>latest</LangVersion>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageIcon>icon.png</PackageIcon>
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild></PropertyGroup>
+    
+    <ItemGroup>
+        <None Include="..\README.md" Pack="true" PackagePath="\" />
+        <None Include="..\LICENSE" Pack="true" PackagePath="\" />
+        <None Include="..\icon.png" Pack="true" PackagePath="\" />
+    </ItemGroup>
+    
+    <ItemGroup>
+      <PackageReference Include="Soenneker.Extensions.ValueTask" Version="3.0.94" />
+      <PackageReference Include="Soenneker.Utils.AtomicBool" Version="3.0.5" />
+    </ItemGroup>
+</Project>
