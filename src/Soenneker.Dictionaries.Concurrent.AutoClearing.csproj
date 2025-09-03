@@ -41,7 +41,7 @@
     </ItemGroup>
     
     <ItemGroup>
-      <PackageReference Include="Soenneker.Extensions.ValueTask" Version="3.0.94" />
+      <PackageReference Include="Soenneker.Extensions.ValueTask" Version="3.0.95" />
       <PackageReference Include="Soenneker.Utils.AtomicBool" Version="3.0.6" />
     </ItemGroup>
 </Project>
