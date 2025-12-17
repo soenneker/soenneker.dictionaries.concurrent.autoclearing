@@ -4,7 +4,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using Soenneker.Utils.AtomicBool;
+using Soenneker.Atomics.Bools;
 using Soenneker.Dictionaries.Concurrent.AutoClearing.Abstract;
 
 namespace Soenneker.Dictionaries.Concurrent.AutoClearing;
