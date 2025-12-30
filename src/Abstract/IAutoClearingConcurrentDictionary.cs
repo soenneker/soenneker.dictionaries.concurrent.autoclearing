@@ -11,7 +11,7 @@ namespace Soenneker.Dictionaries.Concurrent.AutoClearing.Abstract;
 /// </summary>
 /// <typeparam name="TKey">The type of keys in the dictionary. Must be non-nullable.</typeparam>
 /// <typeparam name="TValue">The type of values in the dictionary.</typeparam>
-public interface IAutoClearingConcurrentDictionary<TKey, TValue> : IAsyncDisposable where TKey : notnull
+public interface IAutoClearingConcurrentDictionary<TKey, TValue> : IAsyncDisposable, IDisposable where TKey : notnull
 {
     /// <summary>
     /// Immediately clears the dictionary by atomically swapping in a new empty instance.

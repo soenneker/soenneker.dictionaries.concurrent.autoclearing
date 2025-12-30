@@ -78,6 +78,13 @@ public sealed class AutoClearingConcurrentDictionary<TKey, TValue> : IAutoCleari
     /// Snapshot (allocates). Prefer exposing IEnumerable for allocation-free iteration when possible.
     public KeyValuePair<TKey, TValue>[] ToArray() => _dict.ToArray();
 
+    public void Dispose()
+    {
+        _timer.Dispose();
+
+        Interlocked.Exchange(ref _dict, new ConcurrentDictionary<TKey, TValue>(_concurrencyLevel, _capacity, _comparer));
+    }
+
     public async ValueTask DisposeAsync()
     {
         await _timer.DisposeAsync().NoSync();
