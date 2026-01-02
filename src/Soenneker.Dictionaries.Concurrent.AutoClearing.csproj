@@ -14,7 +14,7 @@
         <AssemblyName>Soenneker.Dictionaries.Concurrent.AutoClearing</AssemblyName>
         <PackageId>Soenneker.Dictionaries.Concurrent.AutoClearing</PackageId>
         <PackageTags>dictionaries concurrent autoclearing auto clear dictionary time timer autoclearingconcurrentdictionary util csharp dotnet c# .net</PackageTags>
-        <Copyright>Copyright © 2025 Jake Soenneker</Copyright>
+        <Copyright>Copyright © 2025-2026 Jake Soenneker</Copyright>
         <Authors>Jake Soenneker</Authors>
         <Company>https://soenneker.com</Company>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
