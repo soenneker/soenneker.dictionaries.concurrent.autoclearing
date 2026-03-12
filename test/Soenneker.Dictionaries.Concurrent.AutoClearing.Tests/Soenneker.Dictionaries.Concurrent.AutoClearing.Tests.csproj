@@ -27,7 +27,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\src\Soenneker.Dictionaries.Concurrent.AutoClearing.csproj" />
+        <ProjectReference Include="..\..\src\Soenneker.Dictionaries.Concurrent.AutoClearing\Soenneker.Dictionaries.Concurrent.AutoClearing.csproj" />
     </ItemGroup>
 
     <ItemGroup>
