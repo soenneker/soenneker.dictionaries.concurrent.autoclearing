@@ -1,17 +1,16 @@
-﻿using Soenneker.Tests.FixturedUnit;
-using Xunit;
+using Soenneker.Tests.HostedUnit;
 
 namespace Soenneker.Dictionaries.Concurrent.AutoClearing.Tests;
 
-[Collection("Collection")]
-public sealed class AutoClearingConcurrentDictionaryTests : FixturedUnitTest
+[ClassDataSource<Host>(Shared = SharedType.PerTestSession)]
+public sealed class AutoClearingConcurrentDictionaryTests : HostedUnitTest
 {
-    public AutoClearingConcurrentDictionaryTests(Fixture fixture, ITestOutputHelper output) : base(fixture, output)
+    public AutoClearingConcurrentDictionaryTests(Host host) : base(host)
     {
 
     }
 
-    [Fact]
+    [Test]
     public void Default()
     {
 
