@@ -174,6 +174,9 @@ public sealed class AutoClearingConcurrentDictionary<TKey, TValue> : IAutoCleari
         return dict.ToArray();
     }
 
+    /// <summary>
+    /// Releases resources used by the current instance.
+    /// </summary>
     public void Dispose()
     {
         if (!_disposed.TrySetTrue())
