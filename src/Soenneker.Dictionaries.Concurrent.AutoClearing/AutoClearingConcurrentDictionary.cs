@@ -101,37 +101,37 @@ public sealed class AutoClearingConcurrentDictionary<TKey, TValue> : IAutoCleari
     {
         ConcurrentDictionary<TKey, TValue> dict = _dict;
 
-        return dict.GetOrAdd(key, k =>
+        return dict.GetOrAdd(key, static (k, state) =>
         {
-            MarkDirty();
-            return valueFactory(k);
-        });
+            state.Owner.MarkDirty();
+            return state.Factory(k);
+        }, (Owner: this, Factory: valueFactory));
     }
 
     public TValue GetOrAdd(TKey key, TValue value)
     {
         ConcurrentDictionary<TKey, TValue> dict = _dict;
 
-        return dict.GetOrAdd(key, _ =>
+        return dict.GetOrAdd(key, static (_, state) =>
         {
-            MarkDirty();
-            return value;
-        });
+            state.Owner.MarkDirty();
+            return state.Value;
+        }, (Owner: this, Value: value));
     }
 
     public TValue AddOrUpdate(TKey key, Func<TKey, TValue> addFactory, Func<TKey, TValue, TValue> updateFactory)
     {
         ConcurrentDictionary<TKey, TValue> dict = _dict;
 
-        return dict.AddOrUpdate(key, k =>
+        return dict.AddOrUpdate(key, static (k, state) =>
         {
-            MarkDirty();
-            return addFactory(k);
-        }, (k, existing) =>
+            state.Owner.MarkDirty();
+            return state.AddFactory(k);
+        }, static (k, existing, state) =>
         {
-            MarkDirty();
-            return updateFactory(k, existing);
-        });
+            state.Owner.MarkDirty();
+            return state.UpdateFactory(k, existing);
+        }, (Owner: this, AddFactory: addFactory, UpdateFactory: updateFactory));
     }
 
     public bool TryGetValue(TKey key, out TValue value)
