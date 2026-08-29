@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace Soenneker.Dictionaries.Concurrent.AutoClearing;
 
-///<inheritdoc cref="IAutoClearingConcurrentDictionary{TKey, TValue}"/>
+/// <inheritdoc cref="IAutoClearingConcurrentDictionary{TKey, TValue}"/>
 public sealed class AutoClearingConcurrentDictionary<TKey, TValue> : IAutoClearingConcurrentDictionary<TKey, TValue> where TKey : notnull
 {
     private const int _defaultCapacity = 31;
