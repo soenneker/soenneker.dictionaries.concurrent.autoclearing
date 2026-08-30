@@ -4,6 +4,7 @@ using Soenneker.Extensions.ValueTask;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -13,8 +14,6 @@ namespace Soenneker.Dictionaries.Concurrent.AutoClearing;
 public sealed class AutoClearingConcurrentDictionary<TKey, TValue> : IAutoClearingConcurrentDictionary<TKey, TValue> where TKey : notnull
 {
     private const int _defaultCapacity = 31;
-    private const int _clearInPlaceThreshold = 256;
-
     private ConcurrentDictionary<TKey, TValue> _dict;
 
     private readonly Timer _timer;
@@ -39,7 +38,7 @@ public sealed class AutoClearingConcurrentDictionary<TKey, TValue> : IAutoCleari
         _capacity = capacity > 0 ? capacity : _defaultCapacity;
         _comparer = comparer;
 
-        _dict = new ConcurrentDictionary<TKey, TValue>(_concurrencyLevel, _capacity, _comparer);
+        _dict = CreateDictionary();
         _timer = new Timer(_sTimerCb, this, clearInterval, clearInterval);
     }
 
@@ -50,29 +49,15 @@ public sealed class AutoClearingConcurrentDictionary<TKey, TValue> : IAutoCleari
         if (_disposed.Value)
             return;
 
-        // If nothing changed since last tick, do nothing.
-        if (!_dirty.TrySetFalse())
-            return;
-
         if (!_ticking.TrySetTrue())
             return;
 
         try
         {
-            ConcurrentDictionary<TKey, TValue> dict = _dict;
-
-            if (dict.IsEmpty)
+            if (!_dirty.TrySetFalse())
                 return;
 
-            if (dict.Count <= _clearInPlaceThreshold)
-            {
-                dict.Clear();
-                return;
-            }
-
-            var newDict = new ConcurrentDictionary<TKey, TValue>(_concurrencyLevel, _capacity, _comparer);
-
-            Interlocked.Exchange(ref _dict, newDict);
+            Interlocked.Exchange(ref _dict, CreateDictionary());
         }
         finally
         {
@@ -82,96 +67,167 @@ public sealed class AutoClearingConcurrentDictionary<TKey, TValue> : IAutoCleari
 
     public void Clear()
     {
-        _dirty.TrySetTrue();
-        Tick();
+        ThrowIfDisposed();
+
+        while (!_ticking.TrySetTrue())
+        {
+            ThrowIfDisposed();
+            Thread.Yield();
+        }
+
+        try
+        {
+            _dirty.TrySetFalse();
+            Interlocked.Exchange(ref _dict, CreateDictionary());
+        }
+        finally
+        {
+            _ticking.TrySetFalse();
+        }
     }
 
     public bool TryAdd(TKey key, TValue value)
     {
-        ConcurrentDictionary<TKey, TValue> dict = _dict;
+        while (true)
+        {
+            ThrowIfDisposed();
+            ConcurrentDictionary<TKey, TValue> dict = Volatile.Read(ref _dict);
+            bool added = dict.TryAdd(key, value);
 
-        if (!dict.TryAdd(key, value))
-            return false;
+            if (!ReferenceEquals(dict, Volatile.Read(ref _dict)))
+                continue;
 
-        MarkDirty();
-        return true;
+            if (added)
+                MarkDirty();
+
+            return added;
+        }
     }
 
     public TValue GetOrAdd(TKey key, Func<TKey, TValue> valueFactory)
     {
-        ConcurrentDictionary<TKey, TValue> dict = _dict;
-
-        return dict.GetOrAdd(key, static (k, state) =>
+        while (true)
         {
-            state.Owner.MarkDirty();
-            return state.Factory(k);
-        }, (Owner: this, Factory: valueFactory));
+            ThrowIfDisposed();
+            ConcurrentDictionary<TKey, TValue> dict = Volatile.Read(ref _dict);
+            TValue value = dict.GetOrAdd(key, valueFactory);
+
+            if (!ReferenceEquals(dict, Volatile.Read(ref _dict)))
+                continue;
+
+            MarkDirty();
+            return value;
+        }
     }
 
     public TValue GetOrAdd(TKey key, TValue value)
     {
-        ConcurrentDictionary<TKey, TValue> dict = _dict;
-
-        return dict.GetOrAdd(key, static (_, state) =>
+        while (true)
         {
-            state.Owner.MarkDirty();
-            return state.Value;
-        }, (Owner: this, Value: value));
+            ThrowIfDisposed();
+            ConcurrentDictionary<TKey, TValue> dict = Volatile.Read(ref _dict);
+            TValue result = dict.GetOrAdd(key, value);
+
+            if (!ReferenceEquals(dict, Volatile.Read(ref _dict)))
+                continue;
+
+            MarkDirty();
+            return result;
+        }
     }
 
     public TValue AddOrUpdate(TKey key, Func<TKey, TValue> addFactory, Func<TKey, TValue, TValue> updateFactory)
     {
-        ConcurrentDictionary<TKey, TValue> dict = _dict;
+        while (true)
+        {
+            ThrowIfDisposed();
+            ConcurrentDictionary<TKey, TValue> dict = Volatile.Read(ref _dict);
+            TValue value = dict.AddOrUpdate(key, addFactory, updateFactory);
 
-        return dict.AddOrUpdate(key, static (k, state) =>
-        {
-            state.Owner.MarkDirty();
-            return state.AddFactory(k);
-        }, static (k, existing, state) =>
-        {
-            state.Owner.MarkDirty();
-            return state.UpdateFactory(k, existing);
-        }, (Owner: this, AddFactory: addFactory, UpdateFactory: updateFactory));
+            if (!ReferenceEquals(dict, Volatile.Read(ref _dict)))
+                continue;
+
+            MarkDirty();
+            return value;
+        }
     }
 
-    public bool TryGetValue(TKey key, out TValue value)
+    public bool TryGetValue(TKey key, [MaybeNullWhen(false)] out TValue value)
     {
-        ConcurrentDictionary<TKey, TValue> dict = _dict;
-        return dict.TryGetValue(key, out value);
+        while (true)
+        {
+            ThrowIfDisposed();
+            ConcurrentDictionary<TKey, TValue> dict = Volatile.Read(ref _dict);
+            bool found = dict.TryGetValue(key, out value);
+
+            if (ReferenceEquals(dict, Volatile.Read(ref _dict)))
+                return found;
+        }
     }
 
-    public bool TryRemove(TKey key, out TValue value)
+    public bool TryRemove(TKey key, [MaybeNullWhen(false)] out TValue value)
     {
-        ConcurrentDictionary<TKey, TValue> dict = _dict;
+        while (true)
+        {
+            ThrowIfDisposed();
+            ConcurrentDictionary<TKey, TValue> dict = Volatile.Read(ref _dict);
+            bool removed = dict.TryRemove(key, out value);
 
-        if (!dict.TryRemove(key, out value))
-            return false;
+            if (!ReferenceEquals(dict, Volatile.Read(ref _dict)))
+                continue;
 
-        MarkDirty();
-        return true;
+            if (removed)
+                MarkDirty();
+
+            return removed;
+        }
     }
 
     public bool ContainsKey(TKey key)
     {
-        ConcurrentDictionary<TKey, TValue> dict = _dict;
-        return dict.ContainsKey(key);
+        while (true)
+        {
+            ThrowIfDisposed();
+            ConcurrentDictionary<TKey, TValue> dict = Volatile.Read(ref _dict);
+            bool found = dict.ContainsKey(key);
+
+            if (ReferenceEquals(dict, Volatile.Read(ref _dict)))
+                return found;
+        }
     }
 
     public int Count
     {
         get
         {
-            ConcurrentDictionary<TKey, TValue> dict = _dict;
+            ThrowIfDisposed();
+            ConcurrentDictionary<TKey, TValue> dict = Volatile.Read(ref _dict);
             return dict.Count;
         }
     }
 
-    public IEnumerable<KeyValuePair<TKey, TValue>> Items => _dict;
+    public IEnumerable<KeyValuePair<TKey, TValue>> Items
+    {
+        get
+        {
+            ThrowIfDisposed();
+            return Volatile.Read(ref _dict);
+        }
+    }
 
     public KeyValuePair<TKey, TValue>[] ToArray()
     {
-        ConcurrentDictionary<TKey, TValue> dict = _dict;
+        ThrowIfDisposed();
+        ConcurrentDictionary<TKey, TValue> dict = Volatile.Read(ref _dict);
         return dict.ToArray();
+    }
+
+    private ConcurrentDictionary<TKey, TValue> CreateDictionary() => new(_concurrencyLevel, _capacity, _comparer);
+
+    private void ThrowIfDisposed()
+    {
+        if (_disposed.Value)
+            throw new ObjectDisposedException(nameof(AutoClearingConcurrentDictionary<TKey, TValue>));
     }
 
     /// <summary>
@@ -191,7 +247,7 @@ public sealed class AutoClearingConcurrentDictionary<TKey, TValue> : IAutoCleari
         }
 
         _timer.Dispose();
-        _dict.Clear();
+        Interlocked.Exchange(ref _dict, CreateDictionary()).Clear();
     }
 
     public async ValueTask DisposeAsync()
@@ -209,6 +265,6 @@ public sealed class AutoClearingConcurrentDictionary<TKey, TValue> : IAutoCleari
 
         await _timer.DisposeAsync()
                     .NoSync();
-        _dict.Clear();
+        Interlocked.Exchange(ref _dict, CreateDictionary()).Clear();
     }
 }

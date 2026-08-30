@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Threading.Tasks;
 
 namespace Soenneker.Dictionaries.Concurrent.AutoClearing.Abstract;
@@ -8,9 +9,7 @@ namespace Soenneker.Dictionaries.Concurrent.AutoClearing.Abstract;
 /// Represents a high-performance concurrent key/value store whose contents are
 /// periodically cleared on a timer.
 /// <para>
-/// Clearing is performed using an adaptive strategy:
-/// small dictionaries are cleared in-place, while large dictionaries are
-/// atomically replaced to avoid O(N) work on the timer thread.
+/// Clearing atomically replaces the current backing dictionary.
 /// </para>
 /// <para>
 /// All operations are thread-safe and designed for low allocation overhead.
@@ -27,8 +26,7 @@ public interface IAutoClearingConcurrentDictionary<TKey, TValue> : IDisposable, 
     /// <summary>
     /// Immediately clears the dictionary.
     /// <para>
-    /// The implementation may either clear in-place or atomically swap the
-    /// underlying dictionary depending on its current size.
+    /// The implementation atomically swaps the underlying dictionary.
     /// </para>
     /// <para>
     /// This method is thread-safe and may run concurrently with other operations.
@@ -92,7 +90,7 @@ public interface IAutoClearingConcurrentDictionary<TKey, TValue> : IDisposable, 
     /// <see langword="true"/> if the key was found; otherwise,
     /// <see langword="false"/>.
     /// </returns>
-    bool TryGetValue(TKey key, out TValue value);
+    bool TryGetValue(TKey key, [MaybeNullWhen(false)] out TValue value);
 
     /// <summary>
     /// Attempts to remove the value associated with the specified key.
@@ -105,7 +103,7 @@ public interface IAutoClearingConcurrentDictionary<TKey, TValue> : IDisposable, 
     /// <see langword="true"/> if the element was removed;
     /// otherwise, <see langword="false"/>.
     /// </returns>
-    bool TryRemove(TKey key, out TValue value);
+    bool TryRemove(TKey key, [MaybeNullWhen(false)] out TValue value);
 
     /// <summary>
     /// Determines whether the dictionary contains the specified key.

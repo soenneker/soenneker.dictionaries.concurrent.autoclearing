@@ -5,51 +5,49 @@
 
 # Soenneker.Dictionaries.Concurrent.AutoClearing
 
-Represents a high-performance concurrent key/value store whose contents are periodically cleared on a timer. Clearing is performed using an adaptive strategy: small dictionaries are cleared in-place, while large dictionaries are atomically replaced to avoid O(N) work on the timer thread. All operations are thread-safe and designed for low allocation overhead.
+A concurrent key/value map whose entire contents are periodically discarded as one batch.
 
-## Install
+## Installation
 
 ```bash
 dotnet add package Soenneker.Dictionaries.Concurrent.AutoClearing
 ```
 
-## Quick start
+## Usage
 
 ```csharp
-using Soenneker.Dictionaries.Concurrent.AutoClearing.Abstract;
+using Soenneker.Dictionaries.Concurrent.AutoClearing;
 
-IAutoClearingConcurrentDictionary<TKey, TValue> autoClearingConcurrentDictionary = /* resolve from DI */;
-autoClearingConcurrentDictionary.Clear();
+await using var recentLookups = new AutoClearingConcurrentDictionary<string, Customer>(
+    clearInterval: TimeSpan.FromMinutes(5),
+    capacity: 10_000,
+    comparer: StringComparer.OrdinalIgnoreCase);
+
+Customer customer = recentLookups.GetOrAdd(customerId, LoadCustomer);
+
+if (recentLookups.TryGetValue(customerId, out Customer? cached))
+{
+    // Use the value while it remains in the current batch.
+}
 ```
 
-Immediately clears the dictionary. The implementation may either clear in-place or atomically swap the underlying dictionary depending on its current size. This method is thread-safe and may run concurrently with other operations.
+The timer rotates the backing dictionary after the interval when the current batch has been used. All entries are cleared together; an entry added just before a rotation can disappear almost immediately. This is not per-key TTL or sliding expiration.
 
-## What you get
+Call `Clear()` to synchronously rotate the current batch:
 
-- `IAutoClearingConcurrentDictionary<TKey, TValue>` — Represents a high-performance concurrent key/value store whose contents are periodically cleared on a timer. Clearing is performed using an adaptive strategy: small dictionaries are cleared in-place, while large dictionaries are atomically replaced to avoid O(N) work on the timer thread. All operations are thread-safe and designed for low allocation overhead.
+```csharp
+recentLookups.Clear();
+```
 
-## API at a glance
+Operations racing a rotation retry against the current dictionary, so they do not report success against an abandoned batch.
 
-| API | What it does | Result / important behavior |
-| --- | --- | --- |
-| `IAutoClearingConcurrentDictionary<TKey, TValue>.Clear()` | Immediately clears the dictionary. The implementation may either clear in-place or atomically swap the underlying dictionary depending on its current size. This method is thread-safe and may run concurrently with other operations. | Returns no value; the requested change is complete when the method returns. |
-| `IAutoClearingConcurrentDictionary<TKey, TValue>.TryAdd(key, value)` | Attempts to add the specified key and value to the dictionary. | `true` if the key/value pair was added; `false` if the key already exists. |
-| `IAutoClearingConcurrentDictionary<TKey, TValue>.GetOrAdd(key, valueFactory)` | Gets the value associated with the specified key. If the key does not exist, the value is created by `valueFactory` and added atomically. | The existing or newly added value associated with `key`. |
-| `IAutoClearingConcurrentDictionary<TKey, TValue>.GetOrAdd(key, value)` | Gets the value associated with the specified key. If the key does not exist, `value` is added atomically. | The existing or newly added value associated with `key`. |
-| `IAutoClearingConcurrentDictionary<TKey, TValue>.AddOrUpdate(key, addFactory, updateFactory)` | Adds a key/value pair if the key does not already exist, or updates the value for an existing key. | The resulting value stored for the specified key. |
-| `IAutoClearingConcurrentDictionary<TKey, TValue>.TryGetValue(key, value)` | Attempts to retrieve the value associated with the specified key. | `true` if the key was found; otherwise, `false`. |
-| `IAutoClearingConcurrentDictionary<TKey, TValue>.TryRemove(key, value)` | Attempts to remove the value associated with the specified key. | `true` if the element was removed; otherwise, `false`. |
-| `IAutoClearingConcurrentDictionary<TKey, TValue>.ContainsKey(key)` | Determines whether the dictionary contains the specified key. | `true` if the dictionary contains the specified key; otherwise, `false`. |
-| `IAutoClearingConcurrentDictionary<TKey, TValue>.Count` | Gets the approximate number of elements currently contained in the dictionary. | The returned value may change immediately due to concurrent operations. |
-| `IAutoClearingConcurrentDictionary<TKey, TValue>.Items` | Gets a live enumerable view over the dictionary. | This is not a snapshot. The sequence may reflect concurrent modifications and may enumerate elements that are later cleared. |
-| `IAutoClearingConcurrentDictionary<TKey, TValue>.ToArray()` | Returns a point-in-time snapshot of the dictionary as a new array. | An array containing a snapshot of the current key/value pairs. |
-| `IAutoClearingConcurrentDictionary<TKey, TValue>.DisposeAsync()` | Asynchronously disposes the dictionary, stopping the periodic clearing mechanism. | A `ValueTask` representing the asynchronous dispose operation. |
+## Concurrency behavior
 
-## Important behavior
+- `TryAdd`, `TryGetValue`, `TryRemove`, `ContainsKey`, `GetOrAdd`, and `AddOrUpdate` are safe for concurrent callers.
+- As with `ConcurrentDictionary`, value factories can execute more than once under contention or when a rotation races the operation. Keep factories side-effect-free.
+- `ToArray()` allocates a point-in-time snapshot. `Items` exposes the current concurrent dictionary for enumeration; it is not a stable snapshot across mutations or rotations.
+- `Count` is observational and can change immediately.
 
-- `IAutoClearingConcurrentDictionary<TKey, TValue>.Count`: The returned value may change immediately due to concurrent operations.
-- `IAutoClearingConcurrentDictionary<TKey, TValue>.Items`: This is not a snapshot. The sequence may reflect concurrent modifications and may enumerate elements that are later cleared.
+The dictionary does not dispose values when a batch is cleared. Use it for values whose lifetime is independent of cache membership, or wrap ownership elsewhere.
 
-## Practical notes
-
-- Dispose instances you own when their scope ends so held resources can be released.
+Dispose the dictionary to stop its timer. All operations throw `ObjectDisposedException` afterward.
